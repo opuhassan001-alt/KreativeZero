@@ -1,0 +1,86 @@
+name: Daily Upstream Scanner (Open-Pomelli)
+
+on:
+  schedule:
+    # 06:00 UTC = 12:00 PM Bangladesh Time (UTC+6) every day
+    - cron: '0 6 * * *'
+  workflow_dispatch: # Allows manual trigger anytime from GitHub Actions tab
+
+permissions:
+  issues: write
+  contents: write
+
+jobs:
+  check-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Scan upstream repository (SamurAIGPT/Open-Pomelli)
+        id: check_upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          UPSTREAM_REPO="SamurAIGPT/Open-Pomelli"
+          STATE_FILE=".upstream-state.json"
+          
+          # 1. Fetch latest commit from upstream
+          LATEST_DATA=$(gh api "repos/${UPSTREAM_REPO}/commits?per_page=5")
+          LATEST_SHA=$(echo "$LATEST_DATA" | jq -r '.[0].sha')
+          LATEST_MSG=$(echo "$LATEST_DATA" | jq -r '.[0].commit.message')
+          LATEST_AUTHOR=$(echo "$LATEST_DATA" | jq -r '.[0].commit.author.name')
+          LATEST_DATE=$(echo "$LATEST_DATA" | jq -r '.[0].commit.author.date')
+          
+          echo "Latest Upstream SHA: $LATEST_SHA"
+          echo "Latest Message: $LATEST_MSG"
+
+          # 2. Check if we have seen this SHA
+          PREV_SHA=""
+          if [ -f "$STATE_FILE" ]; then
+            PREV_SHA=$(jq -r '.last_seen_sha // empty' "$STATE_FILE")
+          fi
+
+          if [ "$LATEST_SHA" != "$PREV_SHA" ]; then
+            echo "new_update=true" >> $GITHUB_OUTPUT
+            echo "sha=$LATEST_SHA" >> $GITHUB_OUTPUT
+            echo "msg=$LATEST_MSG" >> $GITHUB_OUTPUT
+            echo "author=$LATEST_AUTHOR" >> $GITHUB_OUTPUT
+            echo "date=$LATEST_DATE" >> $GITHUB_OUTPUT
+            
+            # Save new state
+            echo "{\"last_seen_sha\":\"$LATEST_SHA\",\"checked_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > "$STATE_FILE"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add "$STATE_FILE"
+            git commit -m "chore: update upstream sync tracker to $LATEST_SHA" || true
+            git push origin main || true
+          else
+            echo "new_update=false" >> $GITHUB_OUTPUT
+            echo "No new updates found in $UPSTREAM_REPO."
+          fi
+
+      - name: Create GitHub Issue notification on new update
+        if: steps.check_upstream.outputs.new_update == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ steps.check_upstream.outputs.sha }}
+          MSG: ${{ steps.check_upstream.outputs.msg }}
+          AUTHOR: ${{ steps.check_upstream.outputs.author }}
+          DATE: ${{ steps.check_upstream.outputs.date }}
+        run: |
+          TITLE="🔔 [Upstream Update Alert] New feature/commit in Open-Pomelli"
+          BODY="### 🚀 New Upstream Update Detected in SamurAIGPT/Open-Pomelli
+
+- **Commit SHA:** \`$SHA\`
+- **Author:** $AUTHOR
+- **Date:** $DATE
+- **Commit Message:**
+> $MSG
+
+---
+### 🛠 Action Required:
+Inspect the upstream commit diff: [View Commit on GitHub](https://github.com/SamurAIGPT/Open-Pomelli/commit/$SHA)
+Review if this new feature/skill should be integrated into KreativeZero."
+
+          gh issue create --title "$TITLE" --body "$BODY"
