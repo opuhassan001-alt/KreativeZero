@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { Animator, type AnimationItem } from "./animator";
 import { DEFAULT_PROMPTS, type SourceType } from "@/lib/animate";
 
+export const dynamic = "force-dynamic";
+
 function asSourceType(s: string | undefined): SourceType {
   return s === "asset" || s === "photoshoot" ? s : "upload";
 }
@@ -17,10 +19,25 @@ export default async function AnimatePage({
   const initialSourceId = sp.sourceId ?? null;
   const initialBrandId = sp.brandId ?? null;
 
-  const recent = await prisma.animation.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 24,
-  });
+  let recent: Array<{
+    id: string;
+    sourceImageUrl: string;
+    videoUrl: string | null;
+    prompt: string;
+    duration: number;
+    resolution: string;
+    sourceType: string;
+  }> = [];
+
+  try {
+    const records = await prisma.animation.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 24,
+    });
+    recent = records;
+  } catch (err) {
+    console.warn("Could not load recent animations:", err);
+  }
 
   const initialAnimations: AnimationItem[] = recent.map((r) => ({
     id: r.id,
