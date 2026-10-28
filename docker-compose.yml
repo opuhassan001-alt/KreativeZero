@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  kreativezero:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kreativezero-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:./dev.db
+    env_file:
+      - .env
+    volumes:
+      - kreativezero-data:/app/prisma
+
+volumes:
+  kreativezero-data:
