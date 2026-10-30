@@ -73,26 +73,28 @@ export async function analyzeBrand(url: string): Promise<BrandDNA> {
   const cssPalette = pickPalette(site.rawColors);
   const logoUrl = site.logoCandidates[0] ?? site.ogImage ?? site.favicon;
 
-  // If MuAPI key is available, use cloud multimodal models
+  // If MuAPI key is available and configured, use cloud multimodal models
   if (process.env.MUAPI_API_KEY && process.env.MUAPI_API_KEY.trim() !== "") {
     try {
-      const screenshotUrl = await muapi.uploadFile(
-        site.screenshot,
-        `screenshot-${Date.now()}.png`,
-        "image/png",
-      );
+      let screenshotUrl = site.screenshotUrl || null;
+      if (!screenshotUrl && site.screenshot && site.screenshot.length > 500) {
+        screenshotUrl = await muapi
+          .uploadFile(site.screenshot, `screenshot-${Date.now()}.png`, "image/png")
+          .catch(() => null);
+      }
 
       const textPrompt = TEXT_PROMPT.replace("{{title}}", site.title)
         .replace("{{description}}", site.description)
         .replace("{{body}}", site.bodyText);
 
-      const [textRaw, visionRaw] = await Promise.all([
+      const promises: [Promise<string>, Promise<string | null>] = [
         muapi.text(textPrompt),
-        muapi.vision(VISION_PROMPT, screenshotUrl),
-      ]);
+        screenshotUrl ? muapi.vision(VISION_PROMPT, screenshotUrl).catch(() => null) : Promise.resolve(null),
+      ];
 
+      const [textRaw, visionRaw] = await Promise.all(promises);
       const text = parseJSON(textRaw);
-      const vision = parseJSON(visionRaw);
+      const vision = visionRaw ? parseJSON(visionRaw) : {};
 
       const primaryColors = dedupHex(asStringArray(vision.primary_colors), cssPalette.primary).slice(0, 5);
       const secondaryColors = dedupHex(asStringArray(vision.secondary_colors), cssPalette.secondary).slice(0, 5);
@@ -119,30 +121,31 @@ export async function analyzeBrand(url: string): Promise<BrandDNA> {
     }
   }
 
-  // Graceful local extraction fallback
+  // Graceful local extraction fallback (Fast, deterministic & zero-cost)
   const rawTitle = site.title || new URL(url).hostname;
   const brandName = rawTitle.split(/[|\-–]/)[0].trim() || "Brand";
   const tagline = site.description ? site.description.slice(0, 120) : "Elevating experiences through innovation";
-  
+
   return {
     brandName,
     industry: "E-Commerce & Digital Brand",
     tagline,
-    valueProposition: site.description || "Delivering high-quality products and seamless experiences directly to modern customers.",
+    valueProposition:
+      site.description || "Delivering high-quality products and seamless experiences directly to modern customers.",
     toneOfVoice: ["Confident", "Modern", "Inspiring", "Approachable"],
     brandPersonality: ["Innovative", "Authentic", "Bold", "Customer-First"],
     targetAudience: "Discerning digital-first consumers looking for premium quality and reliable value.",
     keyMessages: [
       `Engineered for excellence by ${brandName}`,
       "Uncompromising quality and seamless craftsmanship",
-      "Join thousands of satisfied customers worldwide"
+      "Join thousands of satisfied customers worldwide",
     ],
     primaryColors: cssPalette.primary.length ? cssPalette.primary.slice(0, 3) : ["#0f172a", "#2563eb", "#ffffff"],
     secondaryColors: cssPalette.secondary.length ? cssPalette.secondary.slice(0, 3) : ["#f8fafc", "#64748b"],
     fonts: site.fonts.length ? site.fonts.slice(0, 3) : ["Inter", "System-UI", "sans-serif"],
     logoUrl,
-    screenshotUrl: null,
+    screenshotUrl: site.screenshotUrl || null,
     imageryStyle: "modern",
-    layoutStyle: "bold"
+    layoutStyle: "bold",
   };
 }

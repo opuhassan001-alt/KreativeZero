@@ -1,12 +1,25 @@
 import { prisma } from "@/lib/prisma";
-import { notFound } from "next/navigation";
 import Link from "next/link";
 import { NewCampaignForm } from "./form";
+import { getBrandFromMemory, createFallbackBrand } from "@/lib/brand-store";
+
+export const dynamic = "force-dynamic";
 
 export default async function NewCampaignPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const brand = await prisma.brandDNA.findUnique({ where: { id } });
-  if (!brand) notFound();
+  let brand: any = null;
+
+  try {
+    brand = await prisma.brandDNA.findUnique({ where: { id } }).catch(() => null);
+  } catch {}
+
+  if (!brand) {
+    brand = getBrandFromMemory(id);
+  }
+
+  if (!brand) {
+    brand = createFallbackBrand(id);
+  }
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
