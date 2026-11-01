@@ -22,6 +22,16 @@ export default function Home() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ? JSON.stringify(json.error) : `HTTP ${res.status}`);
+
+      if (json.dna) {
+        try {
+          sessionStorage.setItem(`brand_dna_${json.id}`, JSON.stringify(json.dna));
+          sessionStorage.setItem(`brand_url_${json.id}`, url);
+          localStorage.setItem(`brand_dna_${json.id}`, JSON.stringify(json.dna));
+          localStorage.setItem(`brand_url_${json.id}`, url);
+        } catch {}
+      }
+
       router.push(`/brand/${json.id}`);
     } catch (e) {
       setError(String(e));
@@ -34,7 +44,7 @@ export default function Home() {
       <div className="text-center">
         <h1 className="text-4xl font-semibold tracking-tight">KreativeZero</h1>
         <p className="mt-3 text-neutral-400">
-          Paste any website URL. We extract the brand DNA and generate on-brand campaigns — locally.
+          Paste any website URL. We extract the brand DNA and generate on-brand campaigns.
         </p>
       </div>
 
@@ -51,20 +61,25 @@ export default function Home() {
         <button
           type="submit"
           disabled={loading || !url}
-          className="rounded-lg bg-white px-5 py-3 font-medium text-black transition hover:bg-neutral-200 disabled:opacity-50"
+          className="rounded-lg bg-white px-6 py-3 font-medium text-neutral-900 transition hover:bg-neutral-200 disabled:opacity-50"
         >
-          {loading ? "Extracting…" : "Analyze"}
+          {loading ? "Analyzing..." : "Analyze"}
         </button>
       </form>
 
-      {error && <div className="w-full rounded-lg border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">{error}</div>}
+      {error && (
+        <div className="w-full rounded-lg border border-red-800/50 bg-red-950/40 p-4 text-sm text-red-300">
+          {error}
+        </div>
+      )}
 
-      <div className="flex gap-4 text-xs text-neutral-400">
-        <Link href="/photo-studio" className="hover:text-white">
-          Photo Studio →
+      <div className="flex gap-6 text-xs text-neutral-500">
+        <Link href="/photo-studio" className="hover:text-neutral-300">
+          Photo Studio
         </Link>
-        <Link href="/animate" className="hover:text-white">
-          Animate →
+        <span>•</span>
+        <Link href="/animate" className="hover:text-neutral-300">
+          Motion Studio
         </Link>
       </div>
     </main>

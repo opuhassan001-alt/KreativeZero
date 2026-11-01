@@ -1,13 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { DnaEditor, type EditableDNA } from "./editor";
 import { CAMPAIGN_GOALS } from "@/lib/campaign-generator";
 import { getBrandFromMemory, createFallbackBrand } from "@/lib/brand-store";
 
 export const dynamic = "force-dynamic";
 
-function parseList(s: string | null): string[] {
+function parseList(s: string | null | string[]): string[] {
   if (!s) return [];
+  if (Array.isArray(s)) return s;
   try {
     const v = JSON.parse(s);
     return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
@@ -42,6 +44,17 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
     dna = getBrandFromMemory(id);
   }
 
+  // Check HTTP cookie (cross-container serverless persistence)
+  if (!dna) {
+    try {
+      const cookieStore = await cookies();
+      const cookieRaw = cookieStore.get(`dna_${id}`)?.value;
+      if (cookieRaw) {
+        dna = JSON.parse(cookieRaw);
+      }
+    } catch {}
+  }
+
   // Graceful fallback brand so the page NEVER crashes or 404s
   if (!dna) {
     dna = createFallbackBrand(id);
@@ -67,7 +80,7 @@ export default async function BrandPage({ params }: { params: Promise<{ id: stri
 
   return (
     <>
-      <DnaEditor id={dna.id} sourceUrl={dna.url} initial={initial} />
+      <DnaEditor id={id} sourceUrl={dna.url || "https://your-website.com"} initial={initial} />
       {campaigns.length > 0 && (
         <section className="mx-auto mt-12 max-w-5xl px-6">
           <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-neutral-400">

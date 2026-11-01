@@ -89,3 +89,4 @@ export function createFallbackBrand(id: string, url = "https://example.com"): St
     updatedAt: new Date(),
   };
 }
+

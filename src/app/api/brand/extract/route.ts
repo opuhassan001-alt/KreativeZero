@@ -15,10 +15,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
   }
 
+  const targetUrl = parsed.data.url;
+
   try {
-    const dna = await analyzeBrand(parsed.data.url);
+    const dna = await analyzeBrand(targetUrl);
     const brandData = {
-      url: parsed.data.url,
+      url: targetUrl,
       brandName: dna.brandName,
       industry: dna.industry,
       tagline: dna.tagline,
@@ -39,38 +41,32 @@ export async function POST(req: NextRequest) {
 
     let id: string;
     try {
-      const saved = await prisma.brandDNA.create({
-        data: brandData,
-      });
+      const saved = await prisma.brandDNA.create({ data: brandData });
       id = saved.id;
-      saveBrandToMemory({
-        ...brandData,
-        id,
-        createdAt: saved.createdAt,
-        updatedAt: saved.updatedAt,
-      });
-    } catch (dbErr) {
-      console.warn("Prisma DB create failed, saving to resilient memory store:", dbErr);
+      saveBrandToMemory({ ...brandData, id, createdAt: saved.createdAt, updatedAt: saved.updatedAt });
+    } catch {
       id = `br_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      saveBrandToMemory({
-        ...brandData,
-        id,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+      saveBrandToMemory({ ...brandData, id, createdAt: new Date(), updatedAt: new Date() });
     }
 
-    return NextResponse.json({ id });
+    const res = NextResponse.json({ id, dna: brandData });
+    // Set lightweight cookie containing brand data so any serverless container reads it
+    res.cookies.set(`dna_${id}`, JSON.stringify(brandData), {
+      path: "/",
+      maxAge: 86400,
+      sameSite: "lax",
+    });
+
+    return res;
   } catch (e) {
-    console.error("Brand extraction failed:", e);
-    // Even if analysis encountered an issue, provide a resilient fallback ID
+    console.error("Brand extraction critical failure:", e);
     const fallbackId = `br_${Date.now()}_fallback`;
-    const cleanHostname = new URL(parsed.data.url).hostname.replace(/^www\./, "");
+    const cleanHostname = new URL(targetUrl).hostname.replace(/^www\./, "");
     const brandName = cleanHostname.charAt(0).toUpperCase() + cleanHostname.slice(1);
-    
-    saveBrandToMemory({
+
+    const fallbackData = {
       id: fallbackId,
-      url: parsed.data.url,
+      url: targetUrl,
       brandName,
       industry: "Digital & Technology",
       tagline: `Official digital experience for ${brandName}`,
@@ -92,8 +88,16 @@ export async function POST(req: NextRequest) {
       rawJson: "{}",
       createdAt: new Date(),
       updatedAt: new Date(),
+    };
+
+    saveBrandToMemory(fallbackData);
+    const res = NextResponse.json({ id: fallbackId, dna: fallbackData });
+    res.cookies.set(`dna_${fallbackId}`, JSON.stringify(fallbackData), {
+      path: "/",
+      maxAge: 86400,
+      sameSite: "lax",
     });
 
-    return NextResponse.json({ id: fallbackId });
+    return res;
   }
 }
