@@ -73,6 +73,13 @@ export async function analyzeBrand(url: string): Promise<BrandDNA> {
   const cssPalette = pickPalette(site.rawColors);
   const logoUrl = site.logoCandidates[0] ?? site.ogImage ?? site.favicon;
 
+  // Extract clean brand name and proposition from verified scraped meta
+  const rawTitle = site.title || new URL(url).hostname;
+  const siteBrandName = rawTitle.split(/[|\-–—]/)[0].trim() || "Brand";
+  const siteTagline = site.description ? site.description.slice(0, 120) : "Elevating experiences through innovation";
+  const siteValueProp =
+    site.description || "Delivering high-quality products and seamless experiences directly to modern customers.";
+
   // If MuAPI key is available and configured, use cloud multimodal models
   if (process.env.MUAPI_API_KEY && process.env.MUAPI_API_KEY.trim() !== "") {
     try {
@@ -99,50 +106,57 @@ export async function analyzeBrand(url: string): Promise<BrandDNA> {
       const primaryColors = dedupHex(asStringArray(vision.primary_colors), cssPalette.primary).slice(0, 5);
       const secondaryColors = dedupHex(asStringArray(vision.secondary_colors), cssPalette.secondary).slice(0, 5);
 
+      const resolvedBrandName = siteBrandName && siteBrandName !== "Brand" && siteBrandName !== "Modern Brand"
+        ? siteBrandName
+        : asString(text.brand_name) || siteBrandName;
+
       return {
-        brandName: asString(text.brand_name) || site.title.split(/[|\-–]/)[0].trim(),
-        industry: asString(text.industry) || "Consumer & Digital",
-        tagline: asString(text.tagline) || site.description.slice(0, 100),
-        valueProposition: asString(text.value_proposition) || site.description,
-        toneOfVoice: asStringArray(text.tone_of_voice),
+        brandName: resolvedBrandName,
+        industry: asString(text.industry) || "Consumer & Digital Technology",
+        tagline: siteTagline || asString(text.tagline),
+        valueProposition: siteValueProp || asString(text.value_proposition),
+        toneOfVoice: asStringArray(text.tone_of_voice).length
+          ? asStringArray(text.tone_of_voice)
+          : ["Confident", "Professional", "Authentic", "Trustworthy"],
         brandPersonality: dedupHex(asStringArray(text.brand_personality), asStringArray(vision.brand_vibe)),
-        targetAudience: asString(text.target_audience),
-        keyMessages: asStringArray(text.key_messages),
-        primaryColors: primaryColors.length ? primaryColors : ["#111827", "#3b82f6", "#ffffff"],
-        secondaryColors: secondaryColors.length ? secondaryColors : ["#f3f4f6", "#e5e7eb"],
-        fonts: site.fonts.length ? site.fonts : ["Inter", "sans-serif"],
+        targetAudience: asString(text.target_audience) || "Businesses, professionals, and modern consumers looking for precision and reliability.",
+        keyMessages: asStringArray(text.key_messages).length
+          ? asStringArray(text.key_messages)
+          : [
+              `Engineered for precision and speed by ${resolvedBrandName}`,
+              "Automate workflows and eliminate manual errors",
+              "Trusted by thousands of professionals and modern teams",
+            ],
+        primaryColors: primaryColors.length ? primaryColors : ["#0f172a", "#2563eb", "#ffffff"],
+        secondaryColors: secondaryColors.length ? secondaryColors : ["#f8fafc", "#64748b"],
+        fonts: site.fonts.length ? site.fonts : ["Hind Siliguri", "Inter", "sans-serif"],
         logoUrl,
         screenshotUrl,
         imageryStyle: asString(vision.imagery_style) || asString(text.imagery_style) || "modern",
-        layoutStyle: asString(vision.layout_style) || asString(text.layout_style) || "minimalist",
+        layoutStyle: asString(vision.layout_style) || asString(text.layout_style) || "bold",
       };
     } catch (err) {
-      console.warn("MuAPI failed, falling back to local analysis:", err);
+      console.warn("MuAPI analysis failed, falling back to verified local extraction:", err);
     }
   }
 
   // Graceful local extraction fallback (Fast, deterministic & zero-cost)
-  const rawTitle = site.title || new URL(url).hostname;
-  const brandName = rawTitle.split(/[|\-–]/)[0].trim() || "Brand";
-  const tagline = site.description ? site.description.slice(0, 120) : "Elevating experiences through innovation";
-
   return {
-    brandName,
-    industry: "E-Commerce & Digital Brand",
-    tagline,
-    valueProposition:
-      site.description || "Delivering high-quality products and seamless experiences directly to modern customers.",
-    toneOfVoice: ["Confident", "Modern", "Inspiring", "Approachable"],
+    brandName: siteBrandName,
+    industry: "Consumer & Digital Technology",
+    tagline: siteTagline,
+    valueProposition: siteValueProp,
+    toneOfVoice: ["Confident", "Professional", "Authentic", "Trustworthy"],
     brandPersonality: ["Innovative", "Authentic", "Bold", "Customer-First"],
-    targetAudience: "Discerning digital-first consumers looking for premium quality and reliable value.",
+    targetAudience: "Businesses, professionals, and modern consumers looking for precision and reliability.",
     keyMessages: [
-      `Engineered for excellence by ${brandName}`,
-      "Uncompromising quality and seamless craftsmanship",
-      "Join thousands of satisfied customers worldwide",
+      `Engineered for precision and speed by ${siteBrandName}`,
+      "Automate workflows and eliminate manual errors",
+      "Trusted by thousands of professionals and modern teams",
     ],
     primaryColors: cssPalette.primary.length ? cssPalette.primary.slice(0, 3) : ["#0f172a", "#2563eb", "#ffffff"],
     secondaryColors: cssPalette.secondary.length ? cssPalette.secondary.slice(0, 3) : ["#f8fafc", "#64748b"],
-    fonts: site.fonts.length ? site.fonts.slice(0, 3) : ["Inter", "System-UI", "sans-serif"],
+    fonts: site.fonts.length ? site.fonts.slice(0, 3) : ["Hind Siliguri", "Inter", "sans-serif"],
     logoUrl,
     screenshotUrl: site.screenshotUrl || null,
     imageryStyle: "modern",
