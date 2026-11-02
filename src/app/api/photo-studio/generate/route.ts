@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { findStyle } from "@/lib/photo-styles";
 import { generatePhotoshoot } from "@/lib/photo-studio";
-import { getBrandFromMemory, createFallbackBrand } from "@/lib/brand-store";
+import { getBrandFromMemory } from "@/lib/brand-store";
 
 const Body = z.object({
   productImageUrl: z.string().url(),
@@ -21,8 +21,18 @@ export async function POST(req: NextRequest) {
   const parsed = Body.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
 
-  const found = findStyle(parsed.data.category, parsed.data.styleId);
-  if (!found) return NextResponse.json({ error: "unknown style" }, { status: 400 });
+  let found = findStyle(parsed.data.category, parsed.data.styleId);
+  if (!found) {
+    found = findStyle("general", "studio_white") || {
+      category: { id: "general", label: "General", description: "", styles: [] },
+      style: {
+        id: "studio_white",
+        label: "Studio white",
+        prompt: "Clean white seamless studio background, soft diffused key light, subtle floor shadow, hero centered.",
+        aspect: "1:1",
+      },
+    };
+  }
 
   let brand: any = null;
   if (parsed.data.brandId) {
