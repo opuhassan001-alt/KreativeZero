@@ -16,13 +16,36 @@ export function NewCampaignForm({ brandId }: { brandId: string }) {
     setLoading(true);
     setError(null);
     try {
+      let brandDna = null;
+      try {
+        const stored = sessionStorage.getItem(`brand_dna_${brandId}`) || localStorage.getItem(`brand_dna_${brandId}`);
+        if (stored) brandDna = JSON.parse(stored);
+      } catch {}
+
       const res = await fetch("/api/campaign/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandId, goal, prompt: prompt.trim() || null }),
+        body: JSON.stringify({
+          brandId,
+          goal,
+          prompt: prompt.trim() || null,
+          brandDna,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ? JSON.stringify(json.error) : `HTTP ${res.status}`);
+
+      try {
+        if (json.concepts) {
+          sessionStorage.setItem(`campaign_concepts_${json.id}`, JSON.stringify(json.concepts));
+          localStorage.setItem(`campaign_concepts_${json.id}`, JSON.stringify(json.concepts));
+        }
+        if (brandDna) {
+          sessionStorage.setItem(`campaign_brand_${json.id}`, JSON.stringify(brandDna));
+          localStorage.setItem(`campaign_brand_${json.id}`, JSON.stringify(brandDna));
+        }
+      } catch {}
+
       router.push(`/campaign/${json.id}`);
     } catch (e) {
       setError(String(e));

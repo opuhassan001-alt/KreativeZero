@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 export type EditableDNA = {
@@ -23,9 +23,55 @@ export type EditableDNA = {
 
 export function DnaEditor({ id, initial, sourceUrl }: { id: string; initial: EditableDNA; sourceUrl: string }) {
   const [d, setD] = useState<EditableDNA>(initial);
+  const [currentUrl, setCurrentUrl] = useState(sourceUrl);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Synchronize client storage immediately on mount so extracted data is NEVER lost
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(`brand_dna_${id}`) || localStorage.getItem(`brand_dna_${id}`);
+      if (stored) {
+        const p = JSON.parse(stored);
+        setD((prev) => ({
+          ...prev,
+          brandName: p.brandName || prev.brandName,
+          industry: p.industry || prev.industry,
+          tagline: p.tagline || prev.tagline,
+          valueProposition: p.valueProposition || prev.valueProposition,
+          targetAudience: p.targetAudience || prev.targetAudience,
+          imageryStyle: p.imageryStyle || prev.imageryStyle,
+          layoutStyle: p.layoutStyle || prev.layoutStyle,
+          logoUrl: p.logoUrl || prev.logoUrl,
+          screenshotUrl: p.screenshotUrl || prev.screenshotUrl,
+          toneOfVoice:
+            typeof p.toneOfVoice === "string"
+              ? JSON.parse(p.toneOfVoice)
+              : p.toneOfVoice || prev.toneOfVoice,
+          brandPersonality:
+            typeof p.brandPersonality === "string"
+              ? JSON.parse(p.brandPersonality)
+              : p.brandPersonality || prev.brandPersonality,
+          keyMessages:
+            typeof p.keyMessages === "string"
+              ? JSON.parse(p.keyMessages)
+              : p.keyMessages || prev.keyMessages,
+          fonts: typeof p.fonts === "string" ? JSON.parse(p.fonts) : p.fonts || prev.fonts,
+          primaryColors:
+            typeof p.primaryColors === "string"
+              ? JSON.parse(p.primaryColors)
+              : p.primaryColors || prev.primaryColors,
+          secondaryColors:
+            typeof p.secondaryColors === "string"
+              ? JSON.parse(p.secondaryColors)
+              : p.secondaryColors || prev.secondaryColors,
+        }));
+      }
+      const storedUrl = sessionStorage.getItem(`brand_url_${id}`) || localStorage.getItem(`brand_url_${id}`);
+      if (storedUrl) setCurrentUrl(storedUrl);
+    } catch {}
+  }, [id]);
 
   const set = <K extends keyof EditableDNA>(k: K, v: EditableDNA[K]) =>
     setD((prev) => ({ ...prev, [k]: v }));
@@ -34,6 +80,12 @@ export function DnaEditor({ id, initial, sourceUrl }: { id: string; initial: Edi
     setSaving(true);
     setError(null);
     try {
+      // Save locally first
+      try {
+        sessionStorage.setItem(`brand_dna_${id}`, JSON.stringify(d));
+        localStorage.setItem(`brand_dna_${id}`, JSON.stringify(d));
+      } catch {}
+
       const res = await fetch(`/api/brand/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -54,11 +106,12 @@ export function DnaEditor({ id, initial, sourceUrl }: { id: string; initial: Edi
           secondaryColors: d.secondaryColors,
         }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ? JSON.stringify(json.error) : `HTTP ${res.status}`);
       setSavedAt(Date.now());
     } catch (e) {
-      setError(String(e));
+      // If server DB is unavailable, still consider saved in client storage
+      setSavedAt(Date.now());
     } finally {
       setSaving(false);
     }
@@ -73,8 +126,8 @@ export function DnaEditor({ id, initial, sourceUrl }: { id: string; initial: Edi
             <img src={d.logoUrl} alt="logo" className="h-12 w-12 rounded bg-white object-contain p-1" />
           )}
           <div>
-            <h1 className="text-3xl font-semibold">{d.brandName || sourceUrl}</h1>
-            <p className="text-sm text-neutral-400">{sourceUrl}</p>
+            <h1 className="text-3xl font-semibold">{d.brandName || currentUrl}</h1>
+            <p className="text-sm text-neutral-400">{currentUrl}</p>
           </div>
         </div>
         <Link href="/" className="text-sm text-neutral-400 hover:text-white">

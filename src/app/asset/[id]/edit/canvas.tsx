@@ -475,6 +475,10 @@ function ColorRow({
 }
 
 function fontOptions(brandFonts: string[]): { value: string; label: string }[] {
+  const bengaliAndCustom = [
+    { value: "'Hind Siliguri', sans-serif", label: "Hind Siliguri (Bengali)" },
+    { value: "'Noto Sans Bengali', sans-serif", label: "Noto Sans Bengali (Bengali)" },
+  ];
   const system = [
     { value: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif", label: "System Sans" },
     { value: "ui-serif, Georgia, Cambria, 'Times New Roman', serif", label: "System Serif" },
@@ -486,7 +490,7 @@ function fontOptions(brandFonts: string[]): { value: string; label: string }[] {
   const brand = brandFonts
     .filter((f) => f && !/^-/.test(f) && !/^system-ui$/i.test(f))
     .map((f) => ({ value: `${f}, system-ui, sans-serif`, label: `${f} (brand)` }));
-  return [...brand, ...system];
+  return [...bengaliAndCustom, ...brand, ...system];
 }
 
 export { defaultLayout };

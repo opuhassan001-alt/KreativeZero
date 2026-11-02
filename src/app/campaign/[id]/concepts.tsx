@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { PLATFORMS } from "@/lib/platforms";
 import type { CampaignConcept } from "@/lib/campaign-generator";
@@ -34,7 +34,22 @@ export function ConceptsPanel({
   concepts: CampaignConcept[];
   initialAssets: Record<number, ExistingAsset[]>;
 }) {
+  const [conceptList, setConceptList] = useState(concepts);
   const [assetsByConcept, setAssetsByConcept] = useState(initialAssets);
+
+  useEffect(() => {
+    try {
+      const stored =
+        sessionStorage.getItem(`campaign_concepts_${campaignId}`) ||
+        localStorage.getItem(`campaign_concepts_${campaignId}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setConceptList(parsed);
+        }
+      }
+    } catch {}
+  }, [campaignId]);
 
   function appendAsset(conceptIndex: number, asset: ExistingAsset) {
     setAssetsByConcept((prev) => ({
@@ -45,7 +60,7 @@ export function ConceptsPanel({
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      {concepts.map((c, i) => (
+      {conceptList.map((c, i) => (
         <ConceptCard
           key={i}
           campaignId={campaignId}

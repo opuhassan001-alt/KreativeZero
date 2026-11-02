@@ -20,6 +20,7 @@ const Body = z.object({
     "sales",
   ]),
   prompt: z.string().max(2000).optional().nullable(),
+  brandDna: z.any().optional(),
 });
 
 export const maxDuration = 60;
@@ -42,6 +43,14 @@ export async function POST(req: NextRequest) {
 
   if (!brand) {
     brand = createFallbackBrand(parsed.data.brandId);
+  }
+
+  if (parsed.data.brandDna && typeof parsed.data.brandDna === "object") {
+    brand = {
+      ...brand,
+      ...parsed.data.brandDna,
+      id: brand?.id || parsed.data.brandId,
+    };
   }
 
   try {
@@ -83,7 +92,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ id });
+    return NextResponse.json({ id, concepts });
   } catch (e) {
     console.error("Campaign generation error:", e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
